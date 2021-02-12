@@ -7,7 +7,7 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 
 usage() {
   cat <<EOF
-Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] -u url -q quality -b start -e end -H height -W width -f framerate -s style
+Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] [OPTION]
 
 Create a video using style transfer.
 
@@ -15,6 +15,7 @@ Available options:
 
 -h, --help         Print this help and exit
 -v, --verbose      Print script debug info
+-c, --config       Use the file config for args. Ignore other args when used
 -u, --url          The url of the video
 -q, --quality      The quality of the video (144, 240, 360, 480, 720, ...)
 -b, --begin-from   The beginning timecode (format mm:ss)
@@ -23,6 +24,7 @@ Available options:
 -W, --width        The width of the outputed video
 -f, --framerate    The framerate of the video (24 for example)
 -s, --style        The name of the style file (located in data/style-images)
+--gif              Produce a gif instead of mp4
 
 EOF
   exit
@@ -57,6 +59,7 @@ die() {
 
 parse_params() {
   # default values of variables set from params
+  config=''
   quality=360
   start='00:00'
   end=''
@@ -72,6 +75,10 @@ parse_params() {
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
     --gif) format="gif" ;;
+    -c | --config)
+      config="${2-}"
+      shift
+      ;;
     -u | --url)
       url="${2-}"
       shift
@@ -109,7 +116,8 @@ parse_params() {
     esac
     shift
   done
-
+  # shellcheck source=./config.cfg
+  [[ -n "${config-}" ]] && source "$SCRIPT_DIR/$config"
   # check required params and arguments
   [[ -z "${url-}" ]] && die "Missing required parameter: url"
 
