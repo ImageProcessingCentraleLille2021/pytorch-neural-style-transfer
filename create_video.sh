@@ -46,14 +46,26 @@ setup_colors() {
   fi
 }
 
-msg() {
+_msg() {
   echo >&2 -e "${1-}"
+}
+
+ok() {
+  _msg "${GREEN} [ DONE ] ${NOFORMAT} $*"
+}
+
+warn() {
+  _msg "${YELLOW} [ WARN ] ${NOFORMAT} $*"
+}
+
+error() {
+  _msg "${RED} [ERROR] ${NOFORMAT} $*"
 }
 
 die() {
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg "$msg"
+  error "$msg"
   exit "$code"
 }
 
@@ -124,16 +136,16 @@ parse_params() {
   return 0
 }
 
+time_script_start=$(date +%s)
+
 # test if ffmpeg installed
-if ! command -v ffmpeg &> /dev/null
-then
-    die "ffmpeg could not be found"
+if ! command -v ffmpeg &>/dev/null; then
+  die "ffmpeg could not be found"
 fi
 
 # test if youtube-dl installed
-if ! command -v youtube-dl &> /dev/null
-then
-    die "youtube-dl could not be found"
+if ! command -v youtube-dl &>/dev/null; then
+  die "youtube-dl could not be found"
 fi
 
 parse_params "$@"
@@ -144,6 +156,8 @@ mkdir -p "$SCRIPT_DIR/data/content-images/source"
 
 youtube-dl --format "best[height<=$quality]" -o "$SCRIPT_DIR/videos/video.mp4" "$url"
 
+ok "Video saved"
+
 if [ -n "$end" ]; then
   ffmpeg -i "$SCRIPT_DIR/videos/video.mp4" \
     -ss "$start" \
@@ -151,24 +165,34 @@ if [ -n "$end" ]; then
     -s "${height}x${width}" \
     -r "$framerate" \
     -f image2 \
-    "$SCRIPT_DIR/data/content-images/source/image-%3d.png"
+    "$SCRIPT_DIR/data/content-images/source/image-%3d.png" &>/dev/null
 else
   ffmpeg -i "$SCRIPT_DIR/videos/video.mp4" \
     -ss "$start" \
     -s "${height}x${width}" \
     -r "$framerate" \
     -f image2 \
-    "$SCRIPT_DIR/data/content-images/source/image-%3d.png"
+    "$SCRIPT_DIR/data/content-images/source/image-%3d.png" &>/dev/null
 fi
 
+ok "Images extracted from video in $SCRIPT_DIR/data/content-images/source"
+
 images=$(find "$SCRIPT_DIR"/data/content-images/source -name "*.png" | sort)
+nb_images=$(echo "$images" | wc -w)
+num_image=0
 
 for img in $images; do
+  time_start=$(date +%s)
   python "$SCRIPT_DIR/neural_style_transfer.py" \
     --content_img_name "$img" \
     --style_img_name "$SCRIPT_DIR/data/style-images/$style" \
     --output_img_name "$(basename "$img")" \
-    --output_directory "$SCRIPT_DIR/data/output-images"
+    --output_directory "$SCRIPT_DIR/data/output-images" &>/dev/null
+
+  time_taken=$(($(date +%s) - time_start))
+  num_image=$((num_image + 1))
+
+  ok "$num_image/$nb_images generated in ${time_taken}s"
 done
 
 if [ "$format" = "mp4" ]; then
@@ -177,12 +201,18 @@ if [ "$format" = "mp4" ]; then
     -i "$SCRIPT_DIR/data/output-images/*.png" \
     -c:v libx264 \
     -y \
-    "$SCRIPT_DIR/videos/video-${style%.*}.$format"
+    "$SCRIPT_DIR/videos/video-${style%.*}.$format" &>/dev/null
 else
   ffmpeg -r "$framerate" \
     -pattern_type glob \
     -i "$SCRIPT_DIR/data/output-images/*.png" \
     -y \
-    "$SCRIPT_DIR/videos/video-${style%.*}.$format"
+    "$SCRIPT_DIR/videos/video-${style%.*}.$format" &>/dev/null
 fi
+
+ok "Final video generated"
+
+time_script_taken=$(($(date +%s) - time_script_start))
+_msg "Script executed in ${time_script_taken}s"
+
 cleanup
