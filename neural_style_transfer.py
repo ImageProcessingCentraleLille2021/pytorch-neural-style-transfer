@@ -1,3 +1,4 @@
+from ast import dump
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
 
@@ -56,7 +57,6 @@ def neural_style_transfer(config):
         out_dir_name = config['output_directory']
 
     out_img_name = config['output_img_name']
-
     dump_path = os.path.join(config['output_img_dir'], out_dir_name)
     os.makedirs(dump_path, exist_ok=True)
 
@@ -186,6 +186,5 @@ if __name__ == "__main__":
 
     # original NST (Neural Style Transfer) algorithm (Gatys et al.)
     results_path = neural_style_transfer(optimization_config)
-    print(results_path)
     # uncomment this if you want to create a video from images dumped during the optimization procedure
     # create_video_from_intermediate_results(results_path, img_format)
