@@ -7,23 +7,29 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 
 usage() {
   cat <<EOF
-Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] [-f] -p param_value arg1 [arg2...]
+Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] -u url -q quality -b start -e end -H height -W width -f framerate -s style
 
 Create a video using style transfer.
 
 Available options:
 
--h, --help      Print this help and exit
--v, --verbose   Print script debug info
--f, --flag      Some flag description
--p, --param     Some param description
+-h, --help         Print this help and exit
+-v, --verbose      Print script debug info
+-u, --url          The url of the video
+-q, --quality      The quality of the video (144, 240, 360, 480, 720, ...)
+-b, --begin-from   The beginning timecode (format mm:ss)
+-e, --end-at       The ending timecode (format mm:ss)
+-H, --height       The height of the outputed video
+-W, --width        The width of the outputed video
+-f, --framerate    The framerate of the video (24 for example)
+-s, --style        The name of the style file (located in data/style-images)
+
 EOF
   exit
 }
 
 cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
-  # script cleanup here
 }
 
 setup_colors() {
@@ -48,17 +54,51 @@ die() {
 
 parse_params() {
   # default values of variables set from params
-  flag=0
-  param=''
+  quality=360
+  start='00:00'
+  end=''
+  height=128
+  width=128
+  framerate=24
+  style='candy.jpg'
+  format='mp4'
 
   while :; do
     case "${1-}" in
     -h | --help) usage ;;
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
-    -f | --flag) flag=1 ;; # example flag
-    -p | --param)          # example named parameter
-      param="${2-}"
+    --gif) format="gif" ;;
+    -u | --url)
+      url="${2-}"
+      shift
+      ;;
+    -q | --quality)
+      quality="${2-}"
+      shift
+      ;;
+    -b | --begin-from)
+      start="${2-}"
+      shift
+      ;;
+    -e | --end-at)
+      end="${2-}"
+      shift
+      ;;
+    -H | --height)
+      height="${2-}"
+      shift
+      ;;
+    -W | --width)
+      width="${2-}"
+      shift
+      ;;
+    -f | --framerate)
+      framerate="${2-}"
+      shift
+      ;;
+    -s | --style)
+      style="${2-}"
       shift
       ;;
     -?*) die "Unknown option: $1" ;;
@@ -67,32 +107,49 @@ parse_params() {
     shift
   done
 
-  args=("$@")
-
   # check required params and arguments
-  #[[ -z "${param-}" ]] && die "Missing required parameter: param"
-  #[[ ${#args[@]} -eq 0 ]] && die "Missing script arguments"
+  [[ -z "${url-}" ]] && die "Missing required parameter: url"
 
   return 0
 }
 
 parse_params "$@"
+setup_colors
 
 mkdir -p "$SCRIPT_DIR/videos"
 mkdir -p "$SCRIPT_DIR/data/content-images/source"
 
-youtube-dl --format "best[height<=360]" -o "$SCRIPT_DIR/videos/video.mp4" 'https://www.youtube.com/watch?v=3V0oqnrml0o'
+youtube-dl --format "best[height<=$quality]" -o "$SCRIPT_DIR/videos/video.mp4" "$url"
 
-ffmpeg -i "$SCRIPT_DIR/videos/video.mp4" -ss 04:00 -to 04:01 -s 128x128 -r 6 -f image2 "$SCRIPT_DIR/data/content-images/source/image-%3d.png"
+if [ -n "$end" ]; then
+  ffmpeg -i "$SCRIPT_DIR/videos/video.mp4" \
+    -ss "$start" \
+    -to "$end" \
+    -s "${height}x${width}" \
+    -r "$framerate" \
+    -f image2 "$SCRIPT_DIR/data/content-images/source/image-%3d.png"
+else
+  ffmpeg -i "$SCRIPT_DIR/videos/video.mp4" \
+    -ss "$start" \
+    -s "${height}x${width}" \
+    -r "$framerate" \
+    -f image2 \
+    "$SCRIPT_DIR/data/content-images/source/image-%3d.png"
+fi
 
-images=$(find "$SCRIPT_DIR"/data/content-images/source -name "*.png")
+images=$(find "$SCRIPT_DIR"/data/content-images/source -name "*.png | sort")
 
 for img in $images; do
   python "$SCRIPT_DIR/neural_style_transfer.py" \
-  --content_img_name "$img" \
-  --style_img_name "$SCRIPT_DIR/data/style-images/candy.jpg" \
-  --output_img_name "$(basename "$img")" \
-  --output_directory "$SCRIPT_DIR/data/output-images"
+    --content_img_name "$img" \
+    --style_img_name "$SCRIPT_DIR/data/style-images/$style" \
+    --output_img_name "$(basename "$img")" \
+    --output_directory "$SCRIPT_DIR/data/output-images"
 done
 
-ffmpeg -f image2 -i "$SCRIPT_DIR/data/output-images/image-%03d.png" "$SCRIPT_DIR/videos/video-candy.mpg" -framerate 1
+ffmpeg -r "$framerate" \
+  -pattern_type glob \
+  -i "$SCRIPT_DIR/data/output-images/*.png" \
+  -c:v libx264 \
+  -y \
+  "$SCRIPT_DIR/videos/video-${style%.*}.$format"
