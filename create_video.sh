@@ -159,11 +159,18 @@ for img in $images; do
     --output_directory "$SCRIPT_DIR/data/output-images"
 done
 
-ffmpeg -r "$framerate" \
-  -pattern_type glob \
-  -i "$SCRIPT_DIR/data/output-images/*.png" \
-  -c:v libx264 \
-  -y \
-  "$SCRIPT_DIR/videos/video-${style%.*}.$format"
-
+if [ "$format" = "mp4" ]; then
+  ffmpeg -r "$framerate" \
+    -pattern_type glob \
+    -i "$SCRIPT_DIR/data/output-images/*.png" \
+    -c:v libx264 \
+    -y \
+    "$SCRIPT_DIR/videos/video-${style%.*}.$format"
+else
+  ffmpeg -r "$framerate" \
+    -pattern_type glob \
+    -i "$SCRIPT_DIR/data/output-images/*.png" \
+    -y \
+    "$SCRIPT_DIR/videos/video-${style%.*}.$format"
+fi
 cleanup
