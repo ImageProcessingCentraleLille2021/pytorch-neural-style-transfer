@@ -124,6 +124,18 @@ parse_params() {
   return 0
 }
 
+# test if ffmpeg installed
+if ! command -v ffmpeg &> /dev/null
+then
+    die "ffmpeg could not be found"
+fi
+
+# test if youtube-dl installed
+if ! command -v youtube-dl &> /dev/null
+then
+    die "youtube-dl could not be found"
+fi
+
 parse_params "$@"
 setup_colors
 
