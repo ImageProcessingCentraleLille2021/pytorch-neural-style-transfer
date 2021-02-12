@@ -4,7 +4,7 @@ This repo contains a concise PyTorch implementation of the original NST paper (:
 It's an accompanying repository for [this video series on YouTube](https://www.youtube.com/watch?v=S78LQebx6jo&list=PLBoQnSflObcmbfshq9oNs41vODgXG-608).
 
 <p align="left">
-<a href="https://www.youtube.com/watch?v=S78LQebx6jo" target="_blank"><img src="https://img.youtube.com/vi/S78LQebx6jo/0.jpg" 
+<a href="https://www.youtube.com/watch?v=S78LQebx6jo" target="_blank"><img src="https://img.youtube.com/vi/S78LQebx6jo/0.jpg"
 alt="NST Intro" width="480" height="360" border="10" /></a>
 </p>
 
@@ -56,7 +56,7 @@ And here are some results coupled with their style:
 ### Content/Style tradeoff
 
 Changing style weight gives you less or more style on the final image, assuming you keep the content weight constant. <br/>
-I did increments of 10 here for style weight (1e1, 1e2, 1e3, 1e4), while keeping content weight at constant 1e5, and I used random image as initialization image. 
+I did increments of 10 here for style weight (1e1, 1e2, 1e3, 1e4), while keeping content weight at constant 1e5, and I used random image as initialization image.
 
 <p align="center">
 <img src="data/examples/style-tradeoff/figures_vg_starry_night_o_lbfgs_i_random_h_352_m_vgg19_cw_100000.0_sw_10.0_tv_1.0_resized.jpg" width="200px">
@@ -118,7 +118,7 @@ If we only use the content (perceptual) loss and try to minimize that objective 
 <img src="data/examples/content_reconstruction/0509.jpg" width="200px">
 </p>
 
-In steps 0, 26, 70 and 509 of the L-BFGS numerical optimizer, using layer relu3_1 for content representation.<br/> 
+In steps 0, 26, 70 and 509 of the L-BFGS numerical optimizer, using layer relu3_1 for content representation.<br/>
 Check-out [this section](#reconstruct-image-from-representation) if you want to play with this.
 
 ### Style reconstruction
@@ -144,7 +144,7 @@ That's it! It should work out-of-the-box executing environment.yml file which de
 
 -----
 
-PyTorch package will pull some version of CUDA with it, but it is highly recommended that you install system-wide CUDA beforehand, mostly because of GPU drivers. I also recommend using Miniconda installer as a way to get conda on your system. 
+PyTorch package will pull some version of CUDA with it, but it is highly recommended that you install system-wide CUDA beforehand, mostly because of GPU drivers. I also recommend using Miniconda installer as a way to get conda on your system.
 
 Follow through points 1 and 2 of [this setup](https://github.com/Petlja/PSIML/blob/master/docs/MachineSetup.md) and use the most up-to-date versions of Miniconda (Python 3.7) and CUDA/cuDNN.
 (I recommend CUDA 10.1 as it is compatible with PyTorch 1.4, which is used in this repo, and newest compatible cuDNN)
@@ -179,7 +179,7 @@ A: Increase total variation (tv) weight (usually by multiples of 10, again the t
 
 I've also included a file that will help you better understand how the algorithm works and what the neural net sees.<br/>
 What it does is that it allows you to visualize content **(feature maps)** and style representations **(Gram matrices)**.<br/>
-It will also reconstruct either only style or content using those representations and corresponding model that produces them. <br/> 
+It will also reconstruct either only style or content using those representations and corresponding model that produces them. <br/>
 
 Just run this:<br/>
 `reconstruct_image_from_representation.py --should_reconstruct_content <Bool> --should_visualize_representation <Bool>`
@@ -197,6 +197,18 @@ Here are some feature maps (relu1_1, VGG 19) as well as a Gram matrix (relu2_1, 
 </p>
 
 No more dark magic.
+
+### Generating videos
+
+Use the script `create_videos.sh` to download videos from the web (e.g from youtube) and to generate a stylized video from it.
+You can pass the parameters directly to the CLI (see `create_videos.sh --help` for more information.) or by a file (see `config.cfg` for an example)
+You need `youtube-dl` and `ffmpeg` installed to make it work.
+
+
+Here is an example of what we can obtain.
+
+![drone-gif](./data/examples/drone_gif/video-candy.gif)
+
 
 ## Acknowledgements
 
