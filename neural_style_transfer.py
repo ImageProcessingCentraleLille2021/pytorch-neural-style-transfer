@@ -10,7 +10,7 @@ import os
 import argparse
 
 
-def build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
+def build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, previous_img):
     target_content_representation = target_representations[0]
     target_style_representation = target_representations[1]
 
@@ -29,19 +29,27 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
 
     total_loss = config['content_weight'] * content_loss + config['style_weight'] * style_loss + config['tv_weight'] * tv_loss
 
-    return total_loss, content_loss, style_loss, tv_loss
+    temporal_loss = 0
+
+    if previous_img:
+        previous_set_of_feature_maps = neural_net(previous_img)
+        previous_img_representation = previous_set_of_feature_maps[content_feature_maps_index].squeeze(axis=0)
+        temporal_loss = torch.nn.MSELoss(reduction='mean')(previous_img_representation, current_content_representation)
+        total_loss += temporal_loss * config["temporal_weight"]
+
+    return total_loss, content_loss, style_loss, tv_loss, temporal_loss
 
 
-def make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
+def make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index, style_feature_maps_indices, config, previous_img):
     # Builds function that performs a step in the tuning loop
     def tuning_step(optimizing_img):
-        total_loss, content_loss, style_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config)
+        total_loss, content_loss, style_loss, tv_loss, temporal_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, previous_img)
         # Computes gradients
         total_loss.backward()
         # Updates parameters and zeroes gradients
         optimizer.step()
         optimizer.zero_grad()
-        return total_loss, content_loss, style_loss, tv_loss
+        return total_loss, content_loss, style_loss, tv_loss, temporal_loss
 
     # Returns the function that will be called inside the tuning loop
     return tuning_step
@@ -50,6 +58,8 @@ def make_tuning_step(neural_net, optimizer, target_representations, content_feat
 def neural_style_transfer(config):
     content_img_path = os.path.join(config['content_images_dir'], config['content_img_name'])
     style_img_path = os.path.join(config['style_images_dir'], config['style_img_name'])
+    if config["previous_img_name"]:
+        previous_img_path = os.path.join(config['content_images_dir'], config['previous_img_name'])
 
     if config['output_directory'] == "":
         out_dir_name = 'combined_' + os.path.split(content_img_path)[1].split('.')[0] + '_' + os.path.split(style_img_path)[1].split('.')[0]
@@ -64,6 +74,9 @@ def neural_style_transfer(config):
 
     content_img = utils.prepare_img(content_img_path, config['height'], device)
     style_img = utils.prepare_img(style_img_path, config['height'], device)
+    if config["previous_img_name"]:
+        previous_img = utils.prepare_img(previous_img_path, config['height'], device)
+
 
     if config['init_method'] == 'random':
         # white_noise_img = np.random.uniform(-90., 90., content_img.shape).astype(np.float32)
@@ -101,11 +114,11 @@ def neural_style_transfer(config):
     #
     if config['optimizer'] == 'adam':
         optimizer = Adam((optimizing_img,), lr=1e1)
-        tuning_step = make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config)
+        tuning_step = make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, previous_img)
         for cnt in range(num_of_iterations[config['optimizer']]):
-            total_loss, content_loss, style_loss, tv_loss = tuning_step(optimizing_img)
+            total_loss, content_loss, style_loss, tv_loss, temporal_loss = tuning_step(optimizing_img)
             with torch.no_grad():
-                print(f'Adam | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
+                print(f'Adam | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
                 utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, out_img_name=out_img_name)
     elif config['optimizer'] == 'lbfgs':
         # line_search_fn does not seem to have significant impact on result
@@ -116,11 +129,11 @@ def neural_style_transfer(config):
             nonlocal cnt
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
-            total_loss, content_loss, style_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config)
+            total_loss, content_loss, style_loss, tv_loss, temporal_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, previous_img)
             if total_loss.requires_grad:
                 total_loss.backward()
             with torch.no_grad():
-                print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
+                print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
                 utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, out_img_name=out_img_name)
 
             cnt += 1
@@ -148,6 +161,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_img_name", type=str, help="content image name", default='figures.jpg')
     parser.add_argument("--style_img_name", type=str, help="style image name", default='vg_starry_night.jpg')
+    parser.add_argument("--previous_img_name", type=str, help="previous image name", default=False)
     parser.add_argument("--output_img_name", type=str, help="output image name", default=None)
     parser.add_argument("--output_directory", type=str, help="output directory name", default='')
 
@@ -157,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=3e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
+    parser.add_argument("--temporal_weight", type=float, help="weight factor temporal loss", default=1e2)
 
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
