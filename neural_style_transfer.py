@@ -30,8 +30,7 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
     total_loss = config['content_weight'] * content_loss + config['style_weight'] * style_loss + config['tv_weight'] * tv_loss
 
     temporal_loss = 0
-
-    if previous_img:
+    if len(previous_img) > 0:
         previous_set_of_feature_maps = neural_net(previous_img)
         previous_img_representation = previous_set_of_feature_maps[content_feature_maps_index].squeeze(axis=0)
         temporal_loss = torch.nn.MSELoss(reduction='mean')(previous_img_representation, current_content_representation)
@@ -76,6 +75,8 @@ def neural_style_transfer(config):
     style_img = utils.prepare_img(style_img_path, config['height'], device)
     if config["previous_img_name"]:
         previous_img = utils.prepare_img(previous_img_path, config['height'], device)
+    else:
+        previous_img = []
 
 
     if config['init_method'] == 'random':
@@ -118,7 +119,10 @@ def neural_style_transfer(config):
         for cnt in range(num_of_iterations[config['optimizer']]):
             total_loss, content_loss, style_loss, tv_loss, temporal_loss = tuning_step(optimizing_img)
             with torch.no_grad():
-                print(f'Adam | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
+                if temporal_loss != 0:
+                    print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
+                else:
+                    print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss:12.4f}')
                 utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, out_img_name=out_img_name)
     elif config['optimizer'] == 'lbfgs':
         # line_search_fn does not seem to have significant impact on result
@@ -133,7 +137,11 @@ def neural_style_transfer(config):
             if total_loss.requires_grad:
                 total_loss.backward()
             with torch.no_grad():
-                print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
+                if temporal_loss != 0:
+                    print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss.item():12.4f}')
+                else:
+                    print(
+                        f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, temporal loss={config["temporal_weight"] * temporal_loss:12.4f}')
                 utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, out_img_name=out_img_name)
 
             cnt += 1
@@ -171,7 +179,7 @@ if __name__ == "__main__":
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=3e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--temporal_weight", type=float, help="weight factor temporal loss", default=1e2)
+    parser.add_argument("--temporal_weight", type=float, help="weight factor temporal loss", default=1e8)
 
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
