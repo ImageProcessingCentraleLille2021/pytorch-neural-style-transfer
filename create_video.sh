@@ -25,6 +25,7 @@ Available options:
 -f, --framerate    The framerate of the video (24 for example)
 -s, --style        The name of the style file (located in data/style-images)
 --gif              Produce a gif instead of mp4
+--use-temporal     Use the temporal loss to produce each picture
 
 EOF
   exit
@@ -80,6 +81,7 @@ parse_params() {
   framerate=24
   style='candy.jpg'
   format='mp4'
+  loss=''
 
   while :; do
     case "${1-}" in
@@ -87,6 +89,7 @@ parse_params() {
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
     --gif) format="gif" ;;
+    --use-temporal) loss="temporal" ;;
     -c | --config)
       config="${2-}"
       shift
@@ -183,15 +186,25 @@ num_image=0
 
 for img in $images; do
   time_start=$(date +%s)
-  python "$SCRIPT_DIR/neural_style_transfer.py" \
-    --content_img_name "$img" \
-    --style_img_name "$SCRIPT_DIR/data/style-images/$style" \
-    --output_img_name "$(basename "$img")" \
-    --output_directory "$SCRIPT_DIR/data/output-images" &>/dev/null
+  if [ -n "$loss" ] && [ "$num_image" != 0 ]; then
+    previous_num=$(printf "%03d" "$((num_image))")
+    previous_img_name="$(dirname "$img")/image-$previous_num.png"
 
+    python "$SCRIPT_DIR/neural_style_transfer.py" \
+      --content_img_name "$img" \
+      --style_img_name "$SCRIPT_DIR/data/style-images/$style" \
+      --output_img_name "$(basename "$img")" \
+      --output_directory "$SCRIPT_DIR/data/output-images" \
+      --previous_img_name "$previous_img_name" &> /dev/null
+  else
+    python "$SCRIPT_DIR/neural_style_transfer.py" \
+      --content_img_name "$img" \
+      --style_img_name "$SCRIPT_DIR/data/style-images/$style" \
+      --output_img_name "$(basename "$img")" \
+      --output_directory "$SCRIPT_DIR/data/output-images" &>/dev/null
+  fi
   time_taken=$(($(date +%s) - time_start))
   num_image=$((num_image + 1))
-
   ok "$num_image/$nb_images generated in ${time_taken}s"
 done
 
