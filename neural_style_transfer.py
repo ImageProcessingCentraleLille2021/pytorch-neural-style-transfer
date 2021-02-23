@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 import os
 import argparse
+from temporal_loss import compute_temporal_loss
 
 
 def build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, previous_img):
@@ -33,7 +34,8 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
     if len(previous_img) > 0:
         previous_set_of_feature_maps = neural_net(previous_img)
         previous_img_representation = previous_set_of_feature_maps[content_feature_maps_index].squeeze(axis=0)
-        temporal_loss = torch.nn.MSELoss(reduction='mean')(previous_img_representation, current_content_representation)
+        #temporal_loss = torch.nn.MSELoss(reduction='mean')(previous_img_representation, current_content_representation)
+        temporal_loss = compute_temporal_loss(current_content_representation, previous_img_representation)
         total_loss += temporal_loss * config["temporal_weight"]
 
     return total_loss, content_loss, style_loss, tv_loss, temporal_loss
