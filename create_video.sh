@@ -138,6 +138,7 @@ parse_params() {
 
   return 0
 }
+setup_colors
 
 time_script_start=$(date +%s)
 
@@ -152,7 +153,6 @@ if ! command -v youtube-dl &>/dev/null; then
 fi
 
 parse_params "$@"
-setup_colors
 
 mkdir -p "$SCRIPT_DIR/videos"
 mkdir -p "$SCRIPT_DIR/data/content-images/source"
